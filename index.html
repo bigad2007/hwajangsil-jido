@@ -152,6 +152,7 @@ header {
   display: flex;
   flex: 1;
   overflow: hidden;
+  height: calc(100vh - 64px);
 }
 
 /* SIDEBAR */
@@ -332,6 +333,9 @@ header {
 #map {
   flex: 1;
   z-index: 1;
+  min-height: 400px;
+  height: 100%;
+  width: 100%;
 }
 
 /* DETAIL PANEL */
@@ -989,6 +993,7 @@ function initMap() {
     attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
   }).addTo(map);
   L.control.zoom({ position: 'bottomright' }).addTo(map);
+  setTimeout(() => map.invalidateSize(), 300);
   // 위치 먼저 가져오고 API 호출
   if (navigator.geolocation) {
     navigator.geolocation.getCurrentPosition(pos => {
