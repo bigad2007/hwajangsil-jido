@@ -795,8 +795,22 @@ try {
 // 카카오 SDK 로드
 (function() {
   const s = document.createElement('script');
-  s.src = 'https://t1.kakaocdn.net/kakao_js_sdk/2.6.0/kakao.min.js';
-  s.onload = () => { if(window.Kakao && !Kakao.isInitialized()) Kakao.init(KAKAO_APP_KEY); };
+  s.src = 'https://t1.kakaocdn.net/kakao_js_sdk/2.7.2/kakao.min.js';
+  s.integrity = 'sha384-TiCUE00h649CAMonG018J2ujOgDKW/kVWlChEuu4jK2vxfAAD0eZxzCKakxg55G4';
+  s.crossOrigin = 'anonymous';
+  s.onload = () => {
+    if(window.Kakao && !Kakao.isInitialized()) {
+      Kakao.init(KAKAO_APP_KEY);
+      console.log('카카오 SDK 초기화 완료:', Kakao.isInitialized());
+    }
+  };
+  s.onerror = () => {
+    // fallback
+    const s2 = document.createElement('script');
+    s2.src = 'https://developers.kakao.com/sdk/js/kakao.js';
+    s2.onload = () => { if(window.Kakao && !Kakao.isInitialized()) Kakao.init(KAKAO_APP_KEY); };
+    document.head.appendChild(s2);
+  };
   document.head.appendChild(s);
 })();
 
@@ -806,24 +820,42 @@ let currentUser = null;
 
 // ===== 카카오 로그인 =====
 function kakaoLogin() {
-  if (!window.Kakao || !Kakao.isInitialized()) { showToast('❌ 카카오 SDK 로딩 중...'); return; }
-  Kakao.Auth.login({
-    success: function(authObj) {
-      Kakao.API.request({
-        url: '/v2/user/me',
-        success: function(res) {
-          currentUser = {
-            id: res.id,
-            name: res.kakao_account?.profile?.nickname || '익명',
-            photo: res.kakao_account?.profile?.profile_image_url || ''
-          };
-          updateLoginUI();
-          showToast(`✅ ${currentUser.name}님 환영해요!`);
-        }
-      });
-    },
-    fail: function(err) { showToast('❌ 로그인 실패'); }
-  });
+  if (!window.Kakao || !Kakao.isInitialized()) {
+    showToast('⏳ 카카오 SDK 로딩 중... 잠시 후 다시 눌러주세요!');
+    setTimeout(() => {
+      if(window.Kakao && !Kakao.isInitialized()) Kakao.init(KAKAO_APP_KEY);
+    }, 1000);
+    return;
+  }
+  try {
+    Kakao.Auth.login({
+      success: function(authObj) {
+        Kakao.API.request({
+          url: '/v2/user/me',
+          success: function(res) {
+            currentUser = {
+              id: res.id,
+              name: res.kakao_account?.profile?.nickname || '카카오사용자',
+              photo: res.kakao_account?.profile?.profile_image_url || ''
+            };
+            updateLoginUI();
+            showToast(`✅ ${currentUser.name}님 환영해요!`);
+          },
+          fail: function(err) {
+            console.error('유저정보 오류:', err);
+            showToast('❌ 사용자 정보를 가져오지 못했어요');
+          }
+        });
+      },
+      fail: function(err) {
+        console.error('카카오 로그인 오류:', err);
+        showToast('❌ 로그인 실패 — 팝업 차단 해제 후 다시 시도해주세요');
+      }
+    });
+  } catch(e) {
+    console.error(e);
+    showToast('❌ 카카오 로그인 오류: ' + e.message);
+  }
 }
 
 function kakaoLogout() {
@@ -981,6 +1013,8 @@ function getSampleData() {
     { id:'s4', name:"광화문광장 공중화장실", address:"서울 종로구 세종대로 172", lat:37.5759, lng:126.9769, distance:650, rating:4.0, reviewCount:92, open:true, hours:"24시간", tags:["24h","disabled","baby"], cleanliness:78, smell:80, paper:85, soap:82, reviews:[], votes:{paper:9,soap:11,smell:3,queue:6} },
   ];
 }
+
+let map, markers = [], selectedId = null, activeFilters = new Set(['all']);
 
 let map, markers = [], selectedId = null, activeFilters = new Set(['all']);
 
@@ -1261,14 +1295,11 @@ function vote(el, type) {
   showToast('✅ 투표해주셔서 감사해요!');
 }
 
+// ===== UTILS =====
 function getStars(rating) {
   const full = Math.floor(rating);
   const half = rating % 1 >= 0.5;
-  const empty = 5 - full - (half ? 1 : 0);
-
-  return '★'.repeat(full) +
-         (half ? '☆' : '') +
-         '☆'.repeat(empty);
+  return '★'.repeat(full) + (half ? '½' : '') + '☆'.repeat(5 - full - (half ? 1 : 0));
 }
 
 function showToast(msg) {
@@ -1299,8 +1330,6 @@ function handleReviewSubmit(toiletId) {
 }
 
 // ===== INIT =====
-window.onload = function () {
-  initMap();
-};
+window.onload = initMap;
 </script>
 </body>
